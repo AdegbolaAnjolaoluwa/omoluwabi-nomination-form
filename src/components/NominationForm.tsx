@@ -13,6 +13,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { AlertCircle, CheckCircle } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface NominationData {
   nomineeName: string;
@@ -29,6 +32,7 @@ const NominationForm = () => {
     statementOfPurpose: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [similarNameSuggestion, setSimilarNameSuggestion] = useState<any>(null);
   const { toast } = useToast();
 
   const positions = [
@@ -43,6 +47,11 @@ const NominationForm = () => {
       ...prev,
       [field]: value
     }));
+    
+    // Clear suggestions when nominee name changes
+    if (field === 'nomineeName') {
+      setSimilarNameSuggestion(null);
+    }
   };
 
   const validateForm = (): boolean => {
@@ -94,15 +103,20 @@ const NominationForm = () => {
     return true;
   };
 
-  // Placeholder function for Supabase integration
   const submitNomination = async (data: NominationData) => {
-    // This function will be implemented when Supabase is connected
-    console.log("Nomination data to be submitted:", data);
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    return { success: true };
+    const { data: result, error } = await supabase.rpc('process_nomination', {
+      nominee_name_input: data.nomineeName,
+      nominator_name_input: data.nominatorName,
+      position_input: data.position,
+      statement_input: data.statementOfPurpose
+    });
+
+    if (error) {
+      console.error('Nomination submission error:', error);
+      throw error;
+    }
+
+    return result;
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -116,20 +130,34 @@ const NominationForm = () => {
 
     try {
       const result = await submitNomination(formData);
+      console.log('Nomination result:', result);
 
       if (result.success) {
-        toast({
-          title: "Nomination Submitted!",
-          description: "Your nomination has been successfully submitted.",
-        });
+        if (result.action === 'similar_found') {
+          setSimilarNameSuggestion(result.suggestions[0]);
+          toast({
+            title: "Similar Name Found",
+            description: "We found a similar name. Please review the suggestion below.",
+          });
+        } else {
+          const actionMessages = {
+            'vote_added': `Vote added for ${result.canonical_name}!`,
+            'new_candidate': `New candidate ${result.canonical_name} created!`
+          };
 
-        // Reset form
-        setFormData({
-          nomineeName: "",
-          nominatorName: "",
-          position: "",
-          statementOfPurpose: "",
-        });
+          toast({
+            title: "Nomination Submitted!",
+            description: actionMessages[result.action] || "Your nomination has been successfully submitted.",
+          });
+
+          // Reset form
+          setFormData({
+            nomineeName: "",
+            nominatorName: "",
+            position: "",
+            statementOfPurpose: "",
+          });
+        }
       }
     } catch (error) {
       console.error("Submission error:", error);
@@ -141,6 +169,28 @@ const NominationForm = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const acceptSuggestion = () => {
+    if (similarNameSuggestion) {
+      setFormData(prev => ({
+        ...prev,
+        nomineeName: similarNameSuggestion.canonical_name
+      }));
+      setSimilarNameSuggestion(null);
+      toast({
+        title: "Name Updated",
+        description: "The nominee name has been updated to match the existing candidate.",
+      });
+    }
+  };
+
+  const rejectSuggestion = () => {
+    setSimilarNameSuggestion(null);
+    toast({
+      title: "Suggestion Rejected",
+      description: "Your original nomination will be processed as a new candidate.",
+    });
   };
 
   const characterCount = formData.statementOfPurpose.length;
@@ -158,6 +208,28 @@ const NominationForm = () => {
       </CardHeader>
       
       <CardContent>
+        {similarNameSuggestion && (
+          <Alert className="mb-6 border-orange-200 bg-orange-50">
+            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <AlertDescription>
+              <div className="space-y-3">
+                <p className="text-sm text-orange-800">
+                  We found a similar name: <strong>{similarNameSuggestion.canonical_name}</strong>
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={acceptSuggestion} className="bg-green-600 hover:bg-green-700">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Use This Name
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={rejectSuggestion}>
+                    Keep Original
+                  </Button>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Nominee's Full Name */}
           <div className="space-y-2">

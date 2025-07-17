@@ -14,13 +14,145 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      admin_users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          is_super_admin: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          is_super_admin?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          is_super_admin?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      candidates: {
+        Row: {
+          canonical_name: string
+          created_at: string
+          id: string
+          position: string
+          updated_at: string
+          vote_count: number | null
+        }
+        Insert: {
+          canonical_name: string
+          created_at?: string
+          id?: string
+          position: string
+          updated_at?: string
+          vote_count?: number | null
+        }
+        Update: {
+          canonical_name?: string
+          created_at?: string
+          id?: string
+          position?: string
+          updated_at?: string
+          vote_count?: number | null
+        }
+        Relationships: []
+      }
+      name_variations: {
+        Row: {
+          candidate_id: string | null
+          created_at: string
+          id: string
+          variation_name: string
+        }
+        Insert: {
+          candidate_id?: string | null
+          created_at?: string
+          id?: string
+          variation_name: string
+        }
+        Update: {
+          candidate_id?: string | null
+          created_at?: string
+          id?: string
+          variation_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "name_variations_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      nominations: {
+        Row: {
+          created_at: string
+          id: string
+          nominator_name: string
+          nominee_name: string
+          position: string
+          statement_of_purpose: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          nominator_name: string
+          nominee_name: string
+          position: string
+          statement_of_purpose: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nominator_name?: string
+          nominee_name?: string
+          position?: string
+          statement_of_purpose?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      find_similar_names: {
+        Args: { input_name: string; position_name: string }
+        Returns: {
+          candidate_id: string
+          canonical_name: string
+          distance: number
+        }[]
+      }
+      levenshtein_distance: {
+        Args: { s1: string; s2: string }
+        Returns: number
+      }
+      process_nomination: {
+        Args: {
+          nominee_name_input: string
+          nominator_name_input: string
+          position_input: string
+          statement_input: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
