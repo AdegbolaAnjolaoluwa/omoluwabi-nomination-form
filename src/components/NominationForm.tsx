@@ -13,22 +13,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload } from "lucide-react";
 
 interface NominationData {
-  fullName: string;
+  nomineeName: string;
+  nominatorName: string;
   position: string;
   statementOfPurpose: string;
-  profilePhoto?: File;
 }
 
 const NominationForm = () => {
   const [formData, setFormData] = useState<NominationData>({
-    fullName: "",
+    nomineeName: "",
+    nominatorName: "",
     position: "",
     statementOfPurpose: "",
   });
-  const [profilePhoto, setProfilePhoto] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
@@ -46,38 +45,20 @@ const NominationForm = () => {
     }));
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Invalid file type",
-          description: "Please select an image file.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      // Validate file size (5MB limit)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "File too large",
-          description: "Please select an image smaller than 5MB.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      setProfilePhoto(file);
-    }
-  };
-
   const validateForm = (): boolean => {
-    if (!formData.fullName.trim()) {
+    if (!formData.nomineeName.trim()) {
       toast({
         title: "Validation Error",
-        description: "Full Name is required.",
+        description: "Nominee's Full Name is required.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!formData.nominatorName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Your Name (Nominator) is required.",
         variant: "destructive",
       });
       return false;
@@ -117,7 +98,6 @@ const NominationForm = () => {
   const submitNomination = async (data: NominationData) => {
     // This function will be implemented when Supabase is connected
     console.log("Nomination data to be submitted:", data);
-    console.log("Profile photo:", profilePhoto);
     
     // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 2000));
@@ -135,12 +115,7 @@ const NominationForm = () => {
     setIsSubmitting(true);
 
     try {
-      const nominationData = {
-        ...formData,
-        profilePhoto: profilePhoto || undefined,
-      };
-
-      const result = await submitNomination(nominationData);
+      const result = await submitNomination(formData);
 
       if (result.success) {
         toast({
@@ -150,17 +125,11 @@ const NominationForm = () => {
 
         // Reset form
         setFormData({
-          fullName: "",
+          nomineeName: "",
+          nominatorName: "",
           position: "",
           statementOfPurpose: "",
         });
-        setProfilePhoto(null);
-        
-        // Reset file input
-        const fileInput = document.getElementById('profile-photo') as HTMLInputElement;
-        if (fileInput) {
-          fileInput.value = '';
-        }
       }
     } catch (error) {
       console.error("Submission error:", error);
@@ -184,22 +153,38 @@ const NominationForm = () => {
           Election Nomination Form
         </CardTitle>
         <p className="text-muted-foreground">
-          Submit your nomination for club leadership positions
+          Nominate a member for club leadership positions
         </p>
       </CardHeader>
       
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Full Name */}
+          {/* Nominee's Full Name */}
           <div className="space-y-2">
-            <Label htmlFor="fullName" className="text-sm font-medium">
-              Full Name *
+            <Label htmlFor="nomineeName" className="text-sm font-medium">
+              Nominee's Full Name *
             </Label>
             <Input
-              id="fullName"
+              id="nomineeName"
               type="text"
-              value={formData.fullName}
-              onChange={(e) => handleInputChange("fullName", e.target.value)}
+              value={formData.nomineeName}
+              onChange={(e) => handleInputChange("nomineeName", e.target.value)}
+              placeholder="Enter the nominee's full name"
+              className="w-full"
+              required
+            />
+          </div>
+
+          {/* Nominator's Name */}
+          <div className="space-y-2">
+            <Label htmlFor="nominatorName" className="text-sm font-medium">
+              Your Name (Nominator) *
+            </Label>
+            <Input
+              id="nominatorName"
+              type="text"
+              value={formData.nominatorName}
+              onChange={(e) => handleInputChange("nominatorName", e.target.value)}
               placeholder="Enter your full name"
               className="w-full"
               required
@@ -238,7 +223,7 @@ const NominationForm = () => {
               id="statement"
               value={formData.statementOfPurpose}
               onChange={(e) => handleInputChange("statementOfPurpose", e.target.value)}
-              placeholder="Describe your vision and goals for this position..."
+              placeholder="Describe why this person would be suitable for this position..."
               className="w-full min-h-[120px] resize-none"
               maxLength={characterLimit}
               required
@@ -249,33 +234,6 @@ const NominationForm = () => {
                 {characterCount}/{characterLimit}
               </span>
             </div>
-          </div>
-
-          {/* Profile Photo Upload */}
-          <div className="space-y-2">
-            <Label htmlFor="profile-photo" className="text-sm font-medium">
-              Profile Photo (Optional)
-            </Label>
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <Input
-                  id="profile-photo"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="w-full"
-                />
-              </div>
-              <Upload className="h-5 w-5 text-muted-foreground" />
-            </div>
-            {profilePhoto && (
-              <p className="text-sm text-muted-foreground">
-                Selected: {profilePhoto.name}
-              </p>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Accepted formats: JPG, PNG, GIF (Max 5MB)
-            </p>
           </div>
 
           {/* Submit Button */}
