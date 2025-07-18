@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -110,7 +109,7 @@ const NominationForm = () => {
       throw error;
     }
 
-    return result as NominationResponse;
+    return result as unknown as NominationResponse;
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
