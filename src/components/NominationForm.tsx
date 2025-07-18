@@ -16,13 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle, CheckCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
-interface NominationData {
-  nomineeName: string;
-  nominatorName: string;
-  position: string;
-  statementOfPurpose: string;
-}
+import { NominationData, NominationResponse } from "@/types/nomination";
 
 const NominationForm = () => {
   const [formData, setFormData] = useState<NominationData>({
@@ -103,7 +97,7 @@ const NominationForm = () => {
     return true;
   };
 
-  const submitNomination = async (data: NominationData) => {
+  const submitNomination = async (data: NominationData): Promise<NominationResponse> => {
     const { data: result, error } = await supabase.rpc('process_nomination', {
       nominee_name_input: data.nomineeName,
       nominator_name_input: data.nominatorName,
@@ -116,7 +110,7 @@ const NominationForm = () => {
       throw error;
     }
 
-    return result;
+    return result as NominationResponse;
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -134,7 +128,7 @@ const NominationForm = () => {
 
       if (result.success) {
         if (result.action === 'similar_found') {
-          setSimilarNameSuggestion(result.suggestions[0]);
+          setSimilarNameSuggestion(result.suggestions?.[0]);
           toast({
             title: "Similar Name Found",
             description: "We found a similar name. Please review the suggestion below.",
