@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { AlertCircle, CheckCircle } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { EligibleVoter, NominationSubmission } from "@/types/nomination";
 
@@ -46,19 +46,25 @@ const ExcoNominationForm = () => {
 
   const fetchEligibleVoters = async () => {
     try {
+      console.log('Fetching eligible voters...');
       const { data, error } = await supabase
         .from('eligible_voters_2025')
         .select('*')
         .eq('is_active', true)
         .order('full_name');
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error:', error);
+        throw error;
+      }
+      
+      console.log('Fetched eligible voters:', data);
       setEligibleVoters(data || []);
     } catch (error: any) {
       console.error('Error fetching eligible voters:', error);
       toast({
         title: "Error",
-        description: "Failed to load eligible voters",
+        description: "Failed to load eligible voters. Please refresh the page.",
         variant: "destructive",
       });
     } finally {
@@ -68,16 +74,22 @@ const ExcoNominationForm = () => {
 
   const checkIfAlreadyVoted = async (voterName: string) => {
     try {
+      console.log('Checking if voter already voted:', voterName);
       const { data, error } = await supabase
         .from('voter_submissions_2025')
         .select('id')
         .eq('voter_name', voterName)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking vote status:', error);
+        throw error;
+      }
       
-      setHasAlreadyVoted(!!data);
-      return !!data;
+      const alreadyVoted = !!data;
+      console.log('Already voted:', alreadyVoted);
+      setHasAlreadyVoted(alreadyVoted);
+      return alreadyVoted;
     } catch (error: any) {
       console.error('Error checking vote status:', error);
       return false;
@@ -85,6 +97,7 @@ const ExcoNominationForm = () => {
   };
 
   const handleVoterSelect = async (selectedVoter: string) => {
+    console.log('Selected voter:', selectedVoter);
     setVoterName(selectedVoter);
     setNominations(prev => ({ ...prev, voter_name: selectedVoter }));
     
@@ -99,6 +112,7 @@ const ExcoNominationForm = () => {
   };
 
   const handleNominationChange = (position: string, nominee: string) => {
+    console.log('Nomination change:', position, nominee);
     setNominations(prev => ({
       ...prev,
       [position]: nominee
@@ -146,19 +160,27 @@ const ExcoNominationForm = () => {
     setIsSubmitting(true);
 
     try {
+      console.log('Submitting nominations:', nominations);
+      
       // First, record that this voter has submitted
       const { error: submissionError } = await supabase
         .from('voter_submissions_2025')
         .insert({ voter_name: nominations.voter_name });
 
-      if (submissionError) throw submissionError;
+      if (submissionError) {
+        console.error('Submission error:', submissionError);
+        throw submissionError;
+      }
 
       // Then, record the actual nominations
       const { error: nominationError } = await supabase
         .from('nominations_2025')
         .insert(nominations);
 
-      if (nominationError) throw nominationError;
+      if (nominationError) {
+        console.error('Nomination error:', nominationError);
+        throw nominationError;
+      }
 
       toast({
         title: "Nominations Submitted!",

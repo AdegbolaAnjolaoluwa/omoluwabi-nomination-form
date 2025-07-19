@@ -62,12 +62,18 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   const fetchData = async () => {
     try {
       setLoading(true);
+      console.log('Fetching admin dashboard data...');
       
-      // Get nomination statistics
+      // Get nomination statistics using RPC
       const { data: statsData, error: statsError } = await supabase
         .rpc('get_nomination_stats');
 
-      if (statsError) throw statsError;
+      if (statsError) {
+        console.error('Stats error:', statsError);
+        throw statsError;
+      }
+      
+      console.log('Stats data:', statsData);
       setStats(statsData || []);
 
       // Get total submissions count
@@ -75,7 +81,12 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
         .from('voter_submissions_2025')
         .select('*', { count: 'exact', head: true });
 
-      if (countError) throw countError;
+      if (countError) {
+        console.error('Count error:', countError);
+        throw countError;
+      }
+      
+      console.log('Total submissions:', count);
       setTotalSubmissions(count || 0);
 
       // Get top nominees (Super Admin only)
@@ -83,7 +94,12 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
         const { data: topData, error: topError } = await supabase
           .rpc('get_top_nominees');
 
-        if (topError) throw topError;
+        if (topError) {
+          console.error('Top nominees error:', topError);
+          throw topError;
+        }
+        
+        console.log('Top nominees data:', topData);
         setTopNominees(topData || []);
       }
 
@@ -115,12 +131,16 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
 
   const exportData = async () => {
     try {
+      console.log('Exporting nomination data...');
       const { data, error } = await supabase
         .from('nominations_2025')
         .select('*')
         .order('submitted_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Export error:', error);
+        throw error;
+      }
 
       // Convert to CSV
       const headers = ['Voter Name', 'President', 'Tournament Director', 'Hon. Legal Adviser', 'Secretary', 'Hon. Social Secretary', 'Submitted At'];
@@ -162,7 +182,11 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center h-64">Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
   }
 
   return (
@@ -258,7 +282,7 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
                 <div key={nominee.nominee_name} className="p-4 border rounded-lg">
                   <div className="flex items-center justify-between">
                     <span className="font-medium">#{index + 1} {nominee.nominee_name}</span>
-                    <Badge variant="secondary" className="bg-gold-100 text-gold-800">
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
                       {nominee.total_nominations} nominations
                     </Badge>
                   </div>

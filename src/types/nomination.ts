@@ -5,6 +5,13 @@ export interface EligibleVoter {
   member_id: string;
   is_active: boolean;
   created_at: string;
+  updated_at?: string;
+}
+
+export interface VoterSubmission {
+  id: string;
+  voter_name: string;
+  submitted_at: string;
 }
 
 export interface NominationSubmission {
@@ -14,6 +21,17 @@ export interface NominationSubmission {
   hon_legal_adviser: string;
   secretary: string;
   hon_social_secretary: string;
+}
+
+export interface Nomination2025 {
+  id: string;
+  voter_name: string;
+  president: string;
+  tournament_director: string;
+  hon_legal_adviser: string;
+  secretary: string;
+  hon_social_secretary: string;
+  submitted_at: string;
 }
 
 export interface NominationStats {
@@ -32,4 +50,5 @@ export interface AdminUser {
   admin_name: string;
   is_super_admin: boolean;
   created_at: string;
+  password_hash?: string;
 }
