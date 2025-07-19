@@ -218,6 +218,14 @@ export type Database = {
           distance: number
         }[]
       }
+      is_admin: {
+        Args: { user_uuid?: string }
+        Returns: boolean
+      }
+      is_super_admin: {
+        Args: { user_uuid?: string }
+        Returns: boolean
+      }
       levenshtein_distance: {
         Args: { s1: string; s2: string }
         Returns: number
