@@ -4,120 +4,174 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  Trophy, 
-  Users, 
-  FileText, 
-  TrendingUp, 
-  Crown,
-  Download,
-  BarChart3
-} from "lucide-react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from "recharts";
-import { NominationStats, TopNominee } from "@/types/nomination";
+import { Download, Users, TrendingUp, Award } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
-interface ExcoAdminDashboardProps {
-  isSuperAdmin: boolean;
+interface NominationStats {
+  position: string;
+  nominee_name: string;
+  nomination_count: number;
 }
 
-const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
-  const [stats, setStats] = useState<NominationStats[]>([]);
+interface TopNominee {
+  nominee_name: string;
+  total_nominations: number;
+}
+
+interface AdminUser {
+  admin_name: string;
+  is_super_admin: boolean;
+}
+
+const ExcoAdminDashboard = ({ currentUser }: { currentUser: AdminUser }) => {
+  const [nominationStats, setNominationStats] = useState<NominationStats[]>([]);
   const [topNominees, setTopNominees] = useState<TopNominee[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedPosition, setSelectedPosition] = useState<string>("all");
   const [totalSubmissions, setTotalSubmissions] = useState(0);
+  const [totalEligibleVoters, setTotalEligibleVoters] = useState(0);
+  const [selectedPosition, setSelectedPosition] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   const positions = [
-    "President",
-    "Tournament Director", 
-    "Hon. Legal Adviser",
-    "Secretary",
-    "Hon. Social Secretary"
+    { value: "all", label: "All Positions" },
+    { value: "President", label: "President" },
+    { value: "Tournament Director", label: "Tournament Director" },
+    { value: "Hon. Legal Adviser", label: "Hon. Legal Adviser" },
+    { value: "Secretary", label: "Secretary" },
+    { value: "Hon. Social Secretary", label: "Hon. Social Secretary" },
   ];
 
   useEffect(() => {
-    fetchData();
+    fetchDashboardData();
   }, []);
 
-  const fetchData = async () => {
+  const fetchDashboardData = async () => {
     try {
-      setLoading(true);
-      console.log('Fetching admin dashboard data...');
+      console.log('Fetching dashboard data...');
       
-      // Get nomination statistics using RPC
-      const { data: statsData, error: statsError } = await supabase
-        .rpc('get_nomination_stats');
-
+      // Fetch nomination statistics
+      const { data: statsData, error: statsError } = await supabase.rpc('get_nomination_stats');
       if (statsError) {
         console.error('Stats error:', statsError);
         throw statsError;
       }
-      
-      console.log('Stats data:', statsData);
-      setStats(statsData || []);
+      console.log('Nomination stats:', statsData);
+      setNominationStats(statsData || []);
 
-      // Get total submissions count
-      const { count, error: countError } = await supabase
-        .from('voter_submissions_2025')
-        .select('*', { count: 'exact', head: true });
-
-      if (countError) {
-        console.error('Count error:', countError);
-        throw countError;
-      }
-      
-      console.log('Total submissions:', count);
-      setTotalSubmissions(count || 0);
-
-      // Get top nominees (Super Admin only)
-      if (isSuperAdmin) {
-        const { data: topData, error: topError } = await supabase
-          .rpc('get_top_nominees');
-
+      // Fetch top nominees (Super Admin only)
+      if (currentUser.is_super_admin) {
+        const { data: topData, error: topError } = await supabase.rpc('get_top_nominees');
         if (topError) {
           console.error('Top nominees error:', topError);
           throw topError;
         }
-        
-        console.log('Top nominees data:', topData);
+        console.log('Top nominees:', topData);
         setTopNominees(topData || []);
       }
 
+      // Get total submissions count
+      const { count: submissionCount, error: submissionError } = await supabase
+        .from('voter_submissions_2025')
+        .select('*', { count: 'exact', head: true });
+
+      if (submissionError) {
+        console.error('Submission count error:', submissionError);
+        throw submissionError;
+      }
+      console.log('Total submissions:', submissionCount);
+      setTotalSubmissions(submissionCount || 0);
+
+      // Get total eligible voters
+      const { count: voterCount, error: voterError } = await supabase
+        .from('eligible_voters_2025')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_active', true);
+
+      if (voterError) {
+        console.error('Voter count error:', voterError);
+        throw voterError;
+      }
+      console.log('Total eligible voters:', voterCount);
+      setTotalEligibleVoters(voterCount || 0);
+
     } catch (error: any) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching dashboard data:', error);
       toast({
         title: "Error",
-        description: "Failed to load dashboard data",
+        description: "Failed to load dashboard data. Please refresh the page.",
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const exportData = async () => {
+    if (!currentUser.is_super_admin) {
+      toast({
+        title: "Access Denied",
+        description: "Only Super Admin can export data.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      console.log('Exporting nomination data...');
+      const { data, error } = await supabase
+        .from('nominations_2025')
+        .select('*')
+        .order('submitted_at');
+
+      if (error) {
+        console.error('Export error:', error);
+        throw error;
+      }
+
+      // Convert to CSV
+      if (data && data.length > 0) {
+        const headers = Object.keys(data[0]).join(',');
+        const csvData = data.map(row => 
+          Object.values(row).map(value => 
+            typeof value === 'string' ? `"${value}"` : value
+          ).join(',')
+        ).join('\n');
+        
+        const csv = headers + '\n' + csvData;
+        
+        // Download CSV
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `nomination_data_2025_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+
+        toast({
+          title: "Export Successful",
+          description: "Nomination data has been downloaded as CSV.",
+        });
+      }
+    } catch (error: any) {
+      console.error('Error exporting data:', error);
+      toast({
+        title: "Export Failed",
+        description: "Failed to export data. Please try again.",
+        variant: "destructive",
+      });
     }
   };
 
   const getFilteredStats = () => {
-    if (selectedPosition === "all") return stats;
-    return stats.filter(stat => stat.position === selectedPosition);
+    if (selectedPosition === "all") {
+      return nominationStats;
+    }
+    return nominationStats.filter(stat => stat.position === selectedPosition);
   };
 
   const getChartData = () => {
@@ -129,59 +183,11 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
     }));
   };
 
-  const exportData = async () => {
-    try {
-      console.log('Exporting nomination data...');
-      const { data, error } = await supabase
-        .from('nominations_2025')
-        .select('*')
-        .order('submitted_at', { ascending: false });
+  const participationRate = totalEligibleVoters > 0 
+    ? Math.round((totalSubmissions / totalEligibleVoters) * 100) 
+    : 0;
 
-      if (error) {
-        console.error('Export error:', error);
-        throw error;
-      }
-
-      // Convert to CSV
-      const headers = ['Voter Name', 'President', 'Tournament Director', 'Hon. Legal Adviser', 'Secretary', 'Hon. Social Secretary', 'Submitted At'];
-      const csvContent = [
-        headers.join(','),
-        ...data.map(row => [
-          row.voter_name,
-          row.president,
-          row.tournament_director,
-          row.hon_legal_adviser,
-          row.secretary,
-          row.hon_social_secretary,
-          new Date(row.submitted_at).toLocaleString()
-        ].join(','))
-      ].join('\n');
-
-      // Download file
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `exco-nominations-2025-${new Date().toISOString().split('T')[0]}.csv`;
-      a.click();
-      window.URL.revokeObjectURL(url);
-
-      toast({
-        title: "Export Successful",
-        description: "Nomination data has been exported to CSV file.",
-      });
-
-    } catch (error: any) {
-      console.error('Export error:', error);
-      toast({
-        title: "Export Failed",
-        description: "Failed to export nomination data",
-        variant: "destructive",
-      });
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
@@ -190,40 +196,37 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-foreground">
-            {isSuperAdmin ? "Super Admin" : "Admin"} Dashboard
+            2025 EXCO Nomination Dashboard
           </h1>
-          <p className="text-muted-foreground">
-            Omoluwabi Golfers Forum - 2025 EXCO Election Management
+          <p className="text-muted-foreground mt-2">
+            Welcome, {currentUser.admin_name} ({currentUser.is_super_admin ? 'Super Admin' : 'Admin'})
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={fetchData} variant="outline">
-            Refresh Data
+        
+        {currentUser.is_super_admin && (
+          <Button onClick={exportData} className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
+            Export Data (CSV)
           </Button>
-          {isSuperAdmin && (
-            <Button onClick={exportData} className="flex items-center gap-2">
-              <Download className="h-4 w-4" />
-              Export CSV
-            </Button>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Submissions</CardTitle>
-            <FileText className="h-4 w-4 text-muted-foreground" />
+            <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalSubmissions}</div>
-            <p className="text-xs text-muted-foreground">out of 61 eligible voters</p>
+            <p className="text-xs text-muted-foreground">
+              out of {totalEligibleVoters} eligible voters
+            </p>
           </CardContent>
         </Card>
 
@@ -233,151 +236,146 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {((totalSubmissions / 61) * 100).toFixed(1)}%
-            </div>
+            <div className="text-2xl font-bold">{participationRate}%</div>
             <p className="text-xs text-muted-foreground">
-              {61 - totalSubmissions} members yet to vote
+              voter participation
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Positions</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">5</div>
-            <p className="text-xs text-muted-foreground">EXCO positions</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Unique Nominees</CardTitle>
-            <Trophy className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Total Nominations</CardTitle>
+            <Award className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {[...new Set(stats.map(s => s.nominee_name))].length}
+              {nominationStats.reduce((sum, stat) => sum + stat.nomination_count, 0)}
             </div>
-            <p className="text-xs text-muted-foreground">across all positions</p>
+            <p className="text-xs text-muted-foreground">
+              across all positions
+            </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Top 9 Nominees (Super Admin Only) */}
-      {isSuperAdmin && topNominees.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Crown className="h-5 w-5 text-yellow-500" />
-              Top 9 Most Nominated Members (All Positions Combined)
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {topNominees.map((nominee, index) => (
-                <div key={nominee.nominee_name} className="p-4 border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">#{index + 1} {nominee.nominee_name}</span>
-                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">
-                      {nominee.total_nominations} nominations
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Charts and Data */}
-      <Tabs defaultValue="charts" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="charts">Visual Analytics</TabsTrigger>
-          <TabsTrigger value="tables">Detailed Tables</TabsTrigger>
+      <Tabs defaultValue="statistics" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="statistics">Nomination Statistics</TabsTrigger>
+          {currentUser.is_super_admin && (
+            <TabsTrigger value="top-nominees">Top 9 Nominees</TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value="charts" className="space-y-4">
+        <TabsContent value="statistics" className="space-y-4">
+          {/* Position Filter */}
+          <div className="flex flex-wrap gap-2">
+            {positions.map((position) => (
+              <Badge
+                key={position.value}
+                variant={selectedPosition === position.value ? "default" : "secondary"}
+                className="cursor-pointer"
+                onClick={() => setSelectedPosition(position.value)}
+              >
+                {position.label}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Bar Chart */}
           <Card>
             <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Nomination Statistics by Position
-                </CardTitle>
-                <select 
-                  value={selectedPosition} 
-                  onChange={(e) => setSelectedPosition(e.target.value)}
-                  className="px-3 py-1 border rounded"
-                >
-                  <option value="all">All Positions</option>
-                  {positions.map(pos => (
-                    <option key={pos} value={pos}>{pos}</option>
-                  ))}
-                </select>
-              </div>
+              <CardTitle>
+                Nominations by Candidate
+                {selectedPosition !== "all" && ` - ${selectedPosition}`}
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={getChartData()}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45}
-                    textAnchor="end"
-                    height={100}
-                  />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="nominations" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
+              <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={getChartData()}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis 
+                      dataKey="name" 
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      fontSize={12}
+                    />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="nominations" fill="hsl(var(--primary))" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Detailed Statistics Table */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Detailed Statistics</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Position</th>
+                      <th className="text-left p-2">Nominee</th>
+                      <th className="text-left p-2">Nominations</th>
+                      <th className="text-left p-2">Percentage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getFilteredStats().map((stat, index) => (
+                      <tr key={index} className="border-b">
+                        <td className="p-2">{stat.position}</td>
+                        <td className="p-2 font-medium">{stat.nominee_name}</td>
+                        <td className="p-2">{stat.nomination_count}</td>
+                        <td className="p-2">
+                          {totalSubmissions > 0 
+                            ? Math.round((stat.nomination_count / totalSubmissions) * 100)
+                            : 0}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="tables" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Nomination Statistics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Position</TableHead>
-                    <TableHead>Nominee Name</TableHead>
-                    <TableHead>Nomination Count</TableHead>
-                    <TableHead>Percentage</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {getFilteredStats().map((stat, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{stat.position}</TableCell>
-                      <TableCell>{stat.nominee_name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                          {stat.nomination_count}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {totalSubmissions > 0 
-                          ? `${((stat.nomination_count / totalSubmissions) * 100).toFixed(1)}%`
-                          : '0%'
-                        }
-                      </TableCell>
-                    </TableRow>
+        {currentUser.is_super_admin && (
+          <TabsContent value="top-nominees">
+            <Card>
+              <CardHeader>
+                <CardTitle>Top 9 Most Nominated Individuals</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Showing the most nominated individuals across all positions
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {topNominees.map((nominee, index) => (
+                    <Card key={index} className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold">{nominee.nominee_name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {nominee.total_nominations} nominations
+                          </p>
+                        </div>
+                        <Badge variant="outline">#{index + 1}</Badge>
+                      </div>
+                    </Card>
                   ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

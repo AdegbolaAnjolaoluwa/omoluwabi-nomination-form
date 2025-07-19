@@ -14,7 +14,20 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { EligibleVoter, NominationSubmission } from "@/types/nomination";
+import { Tables } from "@/integrations/supabase/types";
+
+type EligibleVoter = Tables<"eligible_voters_2025">;
+type VoterSubmission = Tables<"voter_submissions_2025">;
+type Nomination2025 = Tables<"nominations_2025">;
+
+interface NominationSubmission {
+  voter_name: string;
+  president: string;
+  tournament_director: string;
+  hon_legal_adviser: string;
+  secretary: string;
+  hon_social_secretary: string;
+}
 
 const ExcoNominationForm = () => {
   const [eligibleVoters, setEligibleVoters] = useState<EligibleVoter[]>([]);
