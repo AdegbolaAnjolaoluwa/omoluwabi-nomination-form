@@ -56,31 +56,21 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
         throw new Error('Invalid credentials');
       }
 
-      // Check if admin exists in database
+      // Check if admin exists in database - use maybeSingle to avoid errors when no record found
       const { data: adminData, error: adminError } = await supabase
         .from('admin_users')
         .select('*')
         .eq('email', selectedUser.email)
-        .single();
+        .maybeSingle();
 
-      if (adminError && adminError.code !== 'PGRST116') {
+      if (adminError) {
         console.error('Database error:', adminError);
         throw new Error('Authentication failed');
       }
 
-      // If admin doesn't exist in database, create them
+      // If admin doesn't exist in database, they should contact the super admin
       if (!adminData) {
-        const { error: insertError } = await supabase
-          .from('admin_users')
-          .insert({
-            email: selectedUser.email,
-            is_super_admin: selectedUser.isSuperAdmin
-          });
-
-        if (insertError) {
-          console.error('Insert error:', insertError);
-          throw new Error('Failed to create admin record');
-        }
+        throw new Error('Admin record not found. Please contact the super administrator to set up your account.');
       }
 
       console.log('Admin authenticated successfully');
@@ -93,7 +83,7 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
       onSuccess({ 
         name: selectedAdmin, 
         email: selectedUser.email,
-        isSuperAdmin: selectedUser.isSuperAdmin 
+        isSuperAdmin: adminData.is_super_admin 
       });
 
     } catch (error: any) {
