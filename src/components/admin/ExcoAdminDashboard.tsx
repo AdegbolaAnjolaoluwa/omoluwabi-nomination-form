@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Download, Users, Vote, TrendingUp } from "lucide-react";
+import { Download, Users, Vote, TrendingUp, AlertCircle } from "lucide-react";
 
 // Local interfaces for the 2025 tables
 interface Nomination2025 {
@@ -58,6 +57,7 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   const [eligibleVoters, setEligibleVoters] = useState<EligibleVoter2025[]>([]);
   const [selectedPosition, setSelectedPosition] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const positions = [
@@ -75,15 +75,26 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   const fetchData = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       
-      // Fetch nominations
-      const { data: nominationsData, error: nominationsError } = await supabase
+      console.log('Fetching EXCO dashboard data...');
+      
+      // Fetch nominations with detailed logging
+      console.log('Fetching nominations from nominations_2025 table...');
+      const { data: nominationsData, error: nominationsError, count: nominationsCount } = await supabase
         .from('nominations_2025')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('submitted_at', { ascending: false });
+
+      console.log('Nominations query result:', { 
+        data: nominationsData, 
+        error: nominationsError, 
+        count: nominationsCount 
+      });
 
       if (nominationsError) {
         console.error('Error fetching nominations:', nominationsError);
+        setError(`Failed to fetch nominations: ${nominationsError.message}`);
         toast({
           title: "Database Error",
           description: `Failed to fetch nominations: ${nominationsError.message}`,
@@ -92,14 +103,22 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
         throw nominationsError;
       }
 
-      // Fetch voter submissions
-      const { data: submissionsData, error: submissionsError } = await supabase
+      // Fetch voter submissions with detailed logging
+      console.log('Fetching voter submissions from voter_submissions_2025 table...');
+      const { data: submissionsData, error: submissionsError, count: submissionsCount } = await supabase
         .from('voter_submissions_2025')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('submitted_at', { ascending: false });
+
+      console.log('Submissions query result:', { 
+        data: submissionsData, 
+        error: submissionsError, 
+        count: submissionsCount 
+      });
 
       if (submissionsError) {
         console.error('Error fetching submissions:', submissionsError);
+        setError(`Failed to fetch submissions: ${submissionsError.message}`);
         toast({
           title: "Database Error",
           description: `Failed to fetch submissions: ${submissionsError.message}`,
@@ -108,15 +127,23 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
         throw submissionsError;
       }
 
-      // Fetch eligible voters
-      const { data: votersData, error: votersError } = await supabase
+      // Fetch eligible voters with detailed logging
+      console.log('Fetching eligible voters from eligible_voters_2025 table...');
+      const { data: votersData, error: votersError, count: votersCount } = await supabase
         .from('eligible_voters_2025')
-        .select('*')
+        .select('*', { count: 'exact' })
         .eq('is_active', true)
         .order('full_name');
 
+      console.log('Voters query result:', { 
+        data: votersData, 
+        error: votersError, 
+        count: votersCount 
+      });
+
       if (votersError) {
         console.error('Error fetching eligible voters:', votersError);
+        setError(`Failed to fetch eligible voters: ${votersError.message}`);
         throw votersError;
       }
 
@@ -125,10 +152,18 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
       setVoterSubmissions(submissionsData || []);
       setEligibleVoters(votersData || []);
 
+      console.log('Final data set:', {
+        nominations: nominationsData?.length || 0,
+        submissions: submissionsData?.length || 0,
+        voters: votersData?.length || 0
+      });
+
       // Calculate statistics if we have nominations
       if (nominationsData && nominationsData.length > 0) {
+        console.log('Calculating nomination statistics...');
         calculateStats(nominationsData);
       } else {
+        console.log('No nominations found, setting empty stats');
         setStats([]);
       }
 
@@ -139,6 +174,7 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
 
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
+      setError(`Failed to load dashboard data: ${error.message}`);
       toast({
         title: "Error",
         description: "Failed to load dashboard data. Please try refreshing.",
@@ -150,9 +186,11 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   };
 
   const calculateStats = (nominationsData: Nomination2025[]) => {
+    console.log('Starting stats calculation for', nominationsData.length, 'nominations');
     const positionStats: { [key: string]: { [nominee: string]: number } } = {};
     
-    nominationsData.forEach(nomination => {
+    nominationsData.forEach((nomination, index) => {
+      console.log(`Processing nomination ${index + 1}:`, nomination);
       positions.forEach(position => {
         const positionKey = position.toLowerCase().replace(/[.\s]/g, '_');
         let nominee = '';
@@ -175,7 +213,7 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
             break;
         }
         
-        if (nominee) {
+        if (nominee && nominee.trim()) {
           if (!positionStats[position]) {
             positionStats[position] = {};
           }
@@ -185,6 +223,7 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
           }
           
           positionStats[position][nominee]++;
+          console.log(`Added vote for ${nominee} in ${position}, total: ${positionStats[position][nominee]}`);
         }
       });
     });
@@ -201,6 +240,7 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
       });
     });
 
+    console.log('Final stats calculated:', statsArray);
     setStats(statsArray);
   };
 
@@ -267,6 +307,21 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 space-y-4">
+        <AlertCircle className="h-12 w-12 text-destructive" />
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-destructive">Error Loading Data</h3>
+          <p className="text-muted-foreground mt-2">{error}</p>
+          <Button onClick={fetchData} className="mt-4">
+            Try Again
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   const filteredStats = getFilteredStats();
   const participationRate = eligibleVoters.length > 0 
     ? Math.round((voterSubmissions.length / eligibleVoters.length) * 100) 
@@ -274,6 +329,36 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Debug Info Card */}
+      <Card className="border-yellow-200 bg-yellow-50">
+        <CardHeader>
+          <CardTitle className="text-yellow-800 flex items-center gap-2">
+            <AlertCircle className="h-5 w-5" />
+            Debug Information
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="font-medium">Nominations in DB:</p>
+              <p className="text-lg font-bold">{nominations.length}</p>
+            </div>
+            <div>
+              <p className="font-medium">Submissions in DB:</p>
+              <p className="text-lg font-bold">{voterSubmissions.length}</p>
+            </div>
+            <div>
+              <p className="font-medium">Eligible Voters:</p>
+              <p className="text-lg font-bold">{eligibleVoters.length}</p>
+            </div>
+            <div>
+              <p className="font-medium">Calculated Stats:</p>
+              <p className="text-lg font-bold">{stats.length}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
