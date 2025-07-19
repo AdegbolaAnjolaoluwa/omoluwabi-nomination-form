@@ -14,31 +14,12 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useEligibleVoters } from "@/hooks/useEligibleVoters";
 
 // Local interfaces for the 2025 tables since they're not in the generated types
-interface EligibleVoter2025 {
-  id: string;
-  full_name: string;
-  member_id: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 interface VoterSubmission2025 {
   id: string;
   voter_name: string;
-  submitted_at: string;
-}
-
-interface Nomination2025 {
-  id: string;
-  voter_name: string;
-  president: string;
-  tournament_director: string;
-  hon_legal_adviser: string;
-  secretary: string;
-  hon_social_secretary: string;
   submitted_at: string;
 }
 
@@ -52,9 +33,8 @@ interface NominationSubmission {
 }
 
 const ExcoNominationForm = () => {
-  const [eligibleVoters, setEligibleVoters] = useState<EligibleVoter2025[]>([]);
+  const { eligibleVoters, isLoading, error: votersError, refetch } = useEligibleVoters();
   const [hasAlreadyVoted, setHasAlreadyVoted] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [voterName, setVoterName] = useState("");
   const [nominations, setNominations] = useState<NominationSubmission>({
@@ -74,38 +54,6 @@ const ExcoNominationForm = () => {
     { key: 'secretary', label: 'Secretary' },
     { key: 'hon_social_secretary', label: 'Hon. Social Secretary' },
   ];
-
-  useEffect(() => {
-    fetchEligibleVoters();
-  }, []);
-
-  const fetchEligibleVoters = async () => {
-    try {
-      console.log('Fetching eligible voters...');
-      const { data, error } = (await supabase
-        .from('eligible_voters_2025' as any)
-        .select('*')
-        .eq('is_active', true)
-        .order('full_name')) as { data: EligibleVoter2025[] | null; error: any };
-
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-      
-      console.log('Fetched eligible voters:', data);
-      setEligibleVoters(data || []);
-    } catch (error: any) {
-      console.error('Error fetching eligible voters:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load eligible voters. Please refresh the page.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const checkIfAlreadyVoted = async (voterName: string) => {
     try {
@@ -251,6 +199,30 @@ const ExcoNominationForm = () => {
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
+    );
+  }
+
+  if (votersError) {
+    return (
+      <Card className="w-full max-w-4xl mx-auto shadow-lg">
+        <CardContent className="p-6">
+          <Alert className="border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-800">
+              <strong>Error loading eligible voters:</strong> {votersError}
+              <br />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2" 
+                onClick={refetch}
+              >
+                Try Again
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
     );
   }
 
