@@ -2,13 +2,14 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, BarChart3, Users } from "lucide-react";
+import { LogOut, BarChart3, Users, Crown } from "lucide-react";
 import AdminAuth from "@/components/auth/AdminAuth";
 import ExcoAdminDashboard from "@/components/admin/ExcoAdminDashboard";
 import VoterManagement from "@/components/admin/VoterManagement";
+import BoardOfTrustees from "@/components/admin/BoardOfTrustees";
 
 const Admin = () => {
-  const [adminData, setAdminData] = useState<{ name: string; isSuperAdmin: boolean } | null>(null);
+  const [adminData, setAdminData] = useState<{ name: string; email: string; isSuperAdmin: boolean } | null>(null);
 
   const handleSignOut = () => {
     setAdminData(null);
@@ -51,16 +52,22 @@ const Admin = () => {
         </div>
 
         <Tabs defaultValue="dashboard" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className={`grid w-full ${adminData.isSuperAdmin ? 'grid-cols-4' : 'grid-cols-2'}`}>
             <TabsTrigger value="dashboard" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Dashboard
             </TabsTrigger>
             {adminData.isSuperAdmin && (
-              <TabsTrigger value="voters" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Manage Voters
-              </TabsTrigger>
+              <>
+                <TabsTrigger value="trustees" className="flex items-center gap-2">
+                  <Crown className="h-4 w-4" />
+                  Board of Trustees
+                </TabsTrigger>
+                <TabsTrigger value="voters" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Manage Voters
+                </TabsTrigger>
+              </>
             )}
           </TabsList>
 
@@ -69,9 +76,14 @@ const Admin = () => {
           </TabsContent>
 
           {adminData.isSuperAdmin && (
-            <TabsContent value="voters" className="mt-6">
-              <VoterManagement isSuperAdmin={adminData.isSuperAdmin} />
-            </TabsContent>
+            <>
+              <TabsContent value="trustees" className="mt-6">
+                <BoardOfTrustees />
+              </TabsContent>
+              <TabsContent value="voters" className="mt-6">
+                <VoterManagement isSuperAdmin={adminData.isSuperAdmin} />
+              </TabsContent>
+            </>
           )}
         </Tabs>
       </div>

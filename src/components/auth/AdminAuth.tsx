@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 
 interface AdminAuthProps {
-  onSuccess: (adminData: { name: string; isSuperAdmin: boolean }) => void;
+  onSuccess: (adminData: { name: string; email: string; isSuperAdmin: boolean }) => void;
 }
 
 const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
@@ -25,10 +25,10 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
   const { toast } = useToast();
 
   const adminUsers = [
-    "Anjola Adegbola",
-    "Babatunde Oluwafemi Adegbola", 
-    "Sunday Oluyemi",
-    "Wilson Gbenro Olagbegi"
+    { name: "Anjola Adegbola", email: "anjola@example.com" },
+    { name: "Babatunde Oluwafemi Adegbola", email: "babatunde@example.com" }, 
+    { name: "Sunday Oluyemi", email: "sunday@example.com" },
+    { name: "Wilson Gbenro Olagbegi", email: "wilson@example.com" }
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -46,25 +46,48 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
     setIsLoading(true);
 
     try {
-      // For demo purposes, using a simple password check
-      // In production, you'd want proper password hashing
-      const validPassword = "admin2025"; // You should change this
-      
-      if (password !== validPassword) {
-        throw new Error("Invalid password");
+      const selectedUser = adminUsers.find(admin => admin.name === selectedAdmin);
+      if (!selectedUser) {
+        throw new Error("Selected admin not found");
       }
 
-      // Check if user is super admin
-      const isSuperAdmin = selectedAdmin === "Anjola Adegbola";
+      // Use the Supabase function to authenticate admin
+      const { data, error } = await supabase.rpc('authenticate_admin', {
+        admin_email: selectedUser.email,
+        admin_password: password
+      });
+
+      if (error) {
+        console.error('Supabase RPC error:', error);
+        throw new Error('Authentication failed');
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Authentication failed');
+      }
+
+      // Set the admin email in the session for RLS policies
+      await supabase.rpc('set_config', {
+        setting_name: 'app.current_admin_email',
+        setting_value: selectedUser.email,
+        is_local: true
+      });
+
+      console.log('Admin authenticated successfully:', data.admin);
 
       toast({
         title: "Login Successful",
         description: `Welcome, ${selectedAdmin}!`,
       });
 
-      onSuccess({ name: selectedAdmin, isSuperAdmin });
+      onSuccess({ 
+        name: selectedAdmin, 
+        email: selectedUser.email,
+        isSuperAdmin: data.admin.is_super_admin 
+      });
 
     } catch (error: any) {
+      console.error('Authentication error:', error);
       toast({
         title: "Authentication Failed",
         description: error.message || "Invalid credentials",
@@ -93,8 +116,8 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
               </SelectTrigger>
               <SelectContent>
                 {adminUsers.map((admin) => (
-                  <SelectItem key={admin} value={admin}>
-                    {admin}
+                  <SelectItem key={admin.name} value={admin.name}>
+                    {admin.name}
                   </SelectItem>
                 ))}
               </SelectContent>
