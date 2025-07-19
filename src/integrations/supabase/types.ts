@@ -65,6 +65,33 @@ export type Database = {
         }
         Relationships: []
       }
+      eligible_voters_2025: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          is_active: boolean
+          member_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          id?: string
+          is_active?: boolean
+          member_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          member_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       name_variations: {
         Row: {
           candidate_id: string | null
@@ -124,6 +151,57 @@ export type Database = {
           statement_of_purpose?: string
           status?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      nominations_2025: {
+        Row: {
+          hon_legal_adviser: string
+          hon_social_secretary: string
+          id: string
+          president: string
+          secretary: string
+          submitted_at: string
+          tournament_director: string
+          voter_name: string
+        }
+        Insert: {
+          hon_legal_adviser: string
+          hon_social_secretary: string
+          id?: string
+          president: string
+          secretary: string
+          submitted_at?: string
+          tournament_director: string
+          voter_name: string
+        }
+        Update: {
+          hon_legal_adviser?: string
+          hon_social_secretary?: string
+          id?: string
+          president?: string
+          secretary?: string
+          submitted_at?: string
+          tournament_director?: string
+          voter_name?: string
+        }
+        Relationships: []
+      }
+      voter_submissions_2025: {
+        Row: {
+          id: string
+          submitted_at: string
+          voter_name: string
+        }
+        Insert: {
+          id?: string
+          submitted_at?: string
+          voter_name: string
+        }
+        Update: {
+          id?: string
+          submitted_at?: string
+          voter_name?: string
         }
         Relationships: []
       }
