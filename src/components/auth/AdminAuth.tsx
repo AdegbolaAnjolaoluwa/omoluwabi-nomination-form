@@ -37,13 +37,23 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
     fetchAdminUsers();
   }, []);
 
+  const getFullNameFromEmail = (email: string): string => {
+    const nameMap: { [key: string]: string } = {
+      'anjola@example.com': 'Anjola Adegbola',
+      'babatunde@example.com': 'Babatunde Oluwafemi Adegbola',
+      'sunday@example.com': 'Sunday Oluyemi',
+      'wilson@example.com': 'Wilson Gbenro Olagbegi'
+    };
+    return nameMap[email] || 'Unknown Admin';
+  };
+
   const fetchAdminUsers = async () => {
     try {
       setIsLoadingAdmins(true);
       const { data: admins, error } = await supabase
-        .from('admin_users_view')
+        .from('admin_users')
         .select('*')
-        .order('full_name');
+        .order('email');
 
       if (error) {
         console.error('Error fetching admin users:', error);
@@ -55,7 +65,15 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
         return;
       }
 
-      setAdminUsers(admins || []);
+      // Transform the data to include full_name
+      const adminUsersWithNames = (admins || []).map(admin => ({
+        id: admin.id,
+        email: admin.email,
+        is_super_admin: admin.is_super_admin,
+        full_name: getFullNameFromEmail(admin.email)
+      }));
+
+      setAdminUsers(adminUsersWithNames);
     } catch (error) {
       console.error('Error fetching admin users:', error);
       toast({
