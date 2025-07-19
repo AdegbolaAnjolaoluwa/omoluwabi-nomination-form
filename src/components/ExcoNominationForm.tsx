@@ -14,11 +14,33 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Tables } from "@/integrations/supabase/types";
 
-type EligibleVoter = Tables<"eligible_voters_2025">;
-type VoterSubmission = Tables<"voter_submissions_2025">;
-type Nomination2025 = Tables<"nominations_2025">;
+// Local interfaces for the 2025 tables since they're not in the generated types
+interface EligibleVoter2025 {
+  id: string;
+  full_name: string;
+  member_id: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface VoterSubmission2025 {
+  id: string;
+  voter_name: string;
+  submitted_at: string;
+}
+
+interface Nomination2025 {
+  id: string;
+  voter_name: string;
+  president: string;
+  tournament_director: string;
+  hon_legal_adviser: string;
+  secretary: string;
+  hon_social_secretary: string;
+  submitted_at: string;
+}
 
 interface NominationSubmission {
   voter_name: string;
@@ -30,7 +52,7 @@ interface NominationSubmission {
 }
 
 const ExcoNominationForm = () => {
-  const [eligibleVoters, setEligibleVoters] = useState<EligibleVoter[]>([]);
+  const [eligibleVoters, setEligibleVoters] = useState<EligibleVoter2025[]>([]);
   const [hasAlreadyVoted, setHasAlreadyVoted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,11 +82,11 @@ const ExcoNominationForm = () => {
   const fetchEligibleVoters = async () => {
     try {
       console.log('Fetching eligible voters...');
-      const { data, error } = await supabase
-        .from('eligible_voters_2025')
+      const { data, error } = (await supabase
+        .from('eligible_voters_2025' as any)
         .select('*')
         .eq('is_active', true)
-        .order('full_name');
+        .order('full_name')) as { data: EligibleVoter2025[] | null; error: any };
 
       if (error) {
         console.error('Supabase error:', error);
@@ -88,11 +110,11 @@ const ExcoNominationForm = () => {
   const checkIfAlreadyVoted = async (voterName: string) => {
     try {
       console.log('Checking if voter already voted:', voterName);
-      const { data, error } = await supabase
-        .from('voter_submissions_2025')
+      const { data, error } = (await supabase
+        .from('voter_submissions_2025' as any)
         .select('id')
         .eq('voter_name', voterName)
-        .single();
+        .single()) as { data: VoterSubmission2025 | null; error: any };
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error checking vote status:', error);
@@ -177,8 +199,8 @@ const ExcoNominationForm = () => {
       
       // First, record that this voter has submitted
       const { error: submissionError } = await supabase
-        .from('voter_submissions_2025')
-        .insert({ voter_name: nominations.voter_name });
+        .from('voter_submissions_2025' as any)
+        .insert({ voter_name: nominations.voter_name } as any);
 
       if (submissionError) {
         console.error('Submission error:', submissionError);
@@ -187,8 +209,8 @@ const ExcoNominationForm = () => {
 
       // Then, record the actual nominations
       const { error: nominationError } = await supabase
-        .from('nominations_2025')
-        .insert(nominations);
+        .from('nominations_2025' as any)
+        .insert(nominations as any);
 
       if (nominationError) {
         console.error('Nomination error:', nominationError);
