@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +11,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Download, Users, Vote, TrendingUp } from "lucide-react";
+import { Download, Users, Vote, TrendingUp, RefreshCw } from "lucide-react";
 
 // Local interfaces for the 2025 tables
 interface Nomination2025 {
@@ -64,6 +63,7 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   const [eligibleVoters, setEligibleVoters] = useState<EligibleVoter2025[]>([]);
   const [selectedPosition, setSelectedPosition] = useState<string>("all");
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const { toast } = useToast();
 
   const positions = [
@@ -81,30 +81,56 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   const fetchData = async () => {
     try {
       console.log('Fetching admin dashboard data...');
+      setIsLoading(true);
       
-      // Fetch nominations
+      // Fetch nominations with detailed logging
+      console.log('Querying nominations_2025 table...');
       const { data: nominationsData, error: nominationsError } = await supabase
         .from('nominations_2025')
         .select('*')
         .order('submitted_at', { ascending: false });
 
+      console.log('Nominations query result:', { 
+        data: nominationsData, 
+        error: nominationsError,
+        count: nominationsData?.length || 0 
+      });
+
       if (nominationsError) {
         console.error('Error fetching nominations:', nominationsError);
+        toast({
+          title: "Database Error",
+          description: `Failed to fetch nominations: ${nominationsError.message}`,
+          variant: "destructive",
+        });
         throw nominationsError;
       }
 
-      // Fetch voter submissions
+      // Fetch voter submissions with detailed logging
+      console.log('Querying voter_submissions_2025 table...');
       const { data: submissionsData, error: submissionsError } = await supabase
         .from('voter_submissions_2025')
         .select('*')
         .order('submitted_at', { ascending: false });
 
+      console.log('Submissions query result:', { 
+        data: submissionsData, 
+        error: submissionsError,
+        count: submissionsData?.length || 0 
+      });
+
       if (submissionsError) {
         console.error('Error fetching submissions:', submissionsError);
+        toast({
+          title: "Database Error",
+          description: `Failed to fetch submissions: ${submissionsError.message}`,
+          variant: "destructive",
+        });
         throw submissionsError;
       }
 
       // Fetch eligible voters
+      console.log('Querying eligible_voters_2025 table...');
       const { data: votersData, error: votersError } = await supabase
         .from('eligible_voters_2025')
         .select('*')
@@ -116,38 +142,54 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
         throw votersError;
       }
 
-      console.log('Fetched data:', {
+      console.log('Final fetched data summary:', {
         nominations: nominationsData?.length || 0,
         submissions: submissionsData?.length || 0,
         voters: votersData?.length || 0
       });
 
+      // Set the data
       setNominations(nominationsData || []);
       setVoterSubmissions(submissionsData || []);
       setEligibleVoters(votersData || []);
 
-      // Calculate statistics
+      // Calculate statistics if we have nominations
       if (nominationsData && nominationsData.length > 0) {
+        console.log('Calculating stats for nominations...');
         calculateStats(nominationsData);
         if (isSuperAdmin) {
           calculateTopNominees(nominationsData);
         }
       } else {
-        console.log('No nominations data to process');
+        console.log('No nominations found - resetting stats');
         setStats([]);
         setTopNominees([]);
+      }
+
+      // Show success message only if we actually have data
+      if (nominationsData?.length || submissionsData?.length) {
+        toast({
+          title: "Data Loaded",
+          description: `Found ${nominationsData?.length || 0} nominations and ${submissionsData?.length || 0} submissions`,
+        });
       }
 
     } catch (error: any) {
       console.error('Error fetching dashboard data:', error);
       toast({
         title: "Error",
-        description: "Failed to load dashboard data. Please refresh the page.",
+        description: "Failed to load dashboard data. Please try refreshing.",
         variant: "destructive",
       });
     } finally {
       setIsLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
   };
 
   const calculateStats = (nominationsData: Nomination2025[]) => {
@@ -273,6 +315,15 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
       return;
     }
 
+    if (nominations.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No nominations available to export.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const csvData = nominations.map(nomination => ({
       "Voter Name": nomination.voter_name,
       "President": nomination.president,
@@ -367,6 +418,57 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Debug Information Card */}
+      <Card className="bg-yellow-50 border-yellow-200">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between text-yellow-800">
+            <span>Debug Information</span>
+            <Button 
+              onClick={handleRefresh} 
+              variant="outline" 
+              size="sm"
+              disabled={refreshing}
+              className="border-yellow-300"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh Data
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="font-medium text-yellow-700">Raw Nominations:</p>
+              <p className="text-yellow-600">{nominations.length} records</p>
+            </div>
+            <div>
+              <p className="font-medium text-yellow-700">Raw Submissions:</p>
+              <p className="text-yellow-600">{voterSubmissions.length} records</p>
+            </div>
+            <div>
+              <p className="font-medium text-yellow-700">Calculated Stats:</p>
+              <p className="text-yellow-600">{stats.length} entries</p>
+            </div>
+            <div>
+              <p className="font-medium text-yellow-700">Top Nominees:</p>
+              <p className="text-yellow-600">{topNominees.length} entries</p>
+            </div>
+          </div>
+          {nominations.length === 0 && (
+            <div className="mt-3 p-3 bg-yellow-100 rounded-md">
+              <p className="text-yellow-800 text-sm">
+                <strong>No nominations found.</strong> This could mean:
+              </p>
+              <ul className="list-disc list-inside text-yellow-700 text-sm mt-1 space-y-1">
+                <li>No votes have been submitted yet</li>
+                <li>There's a database connection issue</li>
+                <li>Row Level Security policies are blocking access</li>
+              </ul>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Controls */}
       <Card>
@@ -481,31 +583,39 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
                 </tr>
               </thead>
               <tbody>
-                {filteredStats
-                  .sort((a, b) => {
-                    if (a.position !== b.position) {
-                      return a.position.localeCompare(b.position);
-                    }
-                    return b.nomination_count - a.nomination_count;
-                  })
-                  .map((stat, index) => (
-                    <tr key={`${stat.position}-${stat.nominee_name}-${index}`} className="hover:bg-gray-50">
-                      <td className="border border-gray-300 px-4 py-2 font-medium">
-                        {stat.position}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2">
-                        {stat.nominee_name}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2">
-                        {stat.nomination_count}
-                      </td>
-                      <td className="border border-gray-300 px-4 py-2">
-                        {voterSubmissions.length > 0 
-                          ? Math.round((stat.nomination_count / voterSubmissions.length) * 100)
-                          : 0}%
-                      </td>
-                    </tr>
-                  ))}
+                {filteredStats.length > 0 ? (
+                  filteredStats
+                    .sort((a, b) => {
+                      if (a.position !== b.position) {
+                        return a.position.localeCompare(b.position);
+                      }
+                      return b.nomination_count - a.nomination_count;
+                    })
+                    .map((stat, index) => (
+                      <tr key={`${stat.position}-${stat.nominee_name}-${index}`} className="hover:bg-gray-50">
+                        <td className="border border-gray-300 px-4 py-2 font-medium">
+                          {stat.position}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {stat.nominee_name}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {stat.nomination_count}
+                        </td>
+                        <td className="border border-gray-300 px-4 py-2">
+                          {voterSubmissions.length > 0 
+                            ? Math.round((stat.nomination_count / voterSubmissions.length) * 100)
+                            : 0}%
+                        </td>
+                      </tr>
+                    ))
+                ) : (
+                  <tr>
+                    <td colSpan={4} className="border border-gray-300 px-4 py-8 text-center text-muted-foreground">
+                      No voting results available yet
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
