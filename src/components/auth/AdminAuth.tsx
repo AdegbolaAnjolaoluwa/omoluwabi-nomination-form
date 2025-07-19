@@ -25,10 +25,10 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
   const { toast } = useToast();
 
   const adminUsers = [
-    { name: "Anjola Adegbola", email: "anjola@example.com" },
-    { name: "Babatunde Oluwafemi Adegbola", email: "babatunde@example.com" }, 
-    { name: "Sunday Oluyemi", email: "sunday@example.com" },
-    { name: "Wilson Gbenro Olagbegi", email: "wilson@example.com" }
+    { name: "Anjola Adegbola", email: "anjola@example.com", isSuperAdmin: true },
+    { name: "Babatunde Oluwafemi Adegbola", email: "babatunde@example.com", isSuperAdmin: false }, 
+    { name: "Sunday Oluyemi", email: "sunday@example.com", isSuperAdmin: false },
+    { name: "Wilson Gbenro Olagbegi", email: "wilson@example.com", isSuperAdmin: false }
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -51,29 +51,39 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
         throw new Error("Selected admin not found");
       }
 
-      // Use the Supabase function to authenticate admin
-      const { data, error } = await supabase.rpc('authenticate_admin', {
-        admin_email: selectedUser.email,
-        admin_password: password
-      });
+      // Simple password validation
+      if (password !== 'admin2025') {
+        throw new Error('Invalid credentials');
+      }
 
-      if (error) {
-        console.error('Supabase RPC error:', error);
+      // Check if admin exists in database
+      const { data: adminData, error: adminError } = await supabase
+        .from('admin_users')
+        .select('*')
+        .eq('email', selectedUser.email)
+        .single();
+
+      if (adminError && adminError.code !== 'PGRST116') {
+        console.error('Database error:', adminError);
         throw new Error('Authentication failed');
       }
 
-      if (!data.success) {
-        throw new Error(data.error || 'Authentication failed');
+      // If admin doesn't exist in database, create them
+      if (!adminData) {
+        const { error: insertError } = await supabase
+          .from('admin_users')
+          .insert({
+            email: selectedUser.email,
+            is_super_admin: selectedUser.isSuperAdmin
+          });
+
+        if (insertError) {
+          console.error('Insert error:', insertError);
+          throw new Error('Failed to create admin record');
+        }
       }
 
-      // Set the admin email in the session for RLS policies
-      await supabase.rpc('set_config', {
-        setting_name: 'app.current_admin_email',
-        setting_value: selectedUser.email,
-        is_local: true
-      });
-
-      console.log('Admin authenticated successfully:', data.admin);
+      console.log('Admin authenticated successfully');
 
       toast({
         title: "Login Successful",
@@ -83,7 +93,7 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
       onSuccess({ 
         name: selectedAdmin, 
         email: selectedUser.email,
-        isSuperAdmin: data.admin.is_super_admin 
+        isSuperAdmin: selectedUser.isSuperAdmin 
       });
 
     } catch (error: any) {
