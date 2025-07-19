@@ -1,5 +1,5 @@
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,18 +18,55 @@ interface AdminAuthProps {
   onSuccess: (adminData: { name: string; email: string; isSuperAdmin: boolean }) => void;
 }
 
+interface AdminUser {
+  id: string;
+  email: string;
+  is_super_admin: boolean;
+  full_name: string;
+}
+
 const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
   const [selectedAdmin, setSelectedAdmin] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [isLoadingAdmins, setIsLoadingAdmins] = useState(true);
   const { toast } = useToast();
 
-  const adminUsers = [
-    { name: "Anjola Adegbola", email: "anjola@example.com", isSuperAdmin: true },
-    { name: "Babatunde Oluwafemi Adegbola", email: "babatunde@example.com", isSuperAdmin: false }, 
-    { name: "Sunday Oluyemi", email: "sunday@example.com", isSuperAdmin: false },
-    { name: "Wilson Gbenro Olagbegi", email: "wilson@example.com", isSuperAdmin: false }
-  ];
+  useEffect(() => {
+    fetchAdminUsers();
+  }, []);
+
+  const fetchAdminUsers = async () => {
+    try {
+      setIsLoadingAdmins(true);
+      const { data: admins, error } = await supabase
+        .from('admin_users_view')
+        .select('*')
+        .order('full_name');
+
+      if (error) {
+        console.error('Error fetching admin users:', error);
+        toast({
+          title: "Database Error",
+          description: "Failed to load admin users.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setAdminUsers(admins || []);
+    } catch (error) {
+      console.error('Error fetching admin users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load admin users.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingAdmins(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,7 +83,7 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
     setIsLoading(true);
 
     try {
-      const selectedUser = adminUsers.find(admin => admin.name === selectedAdmin);
+      const selectedUser = adminUsers.find(admin => admin.full_name === selectedAdmin);
       if (!selectedUser) {
         throw new Error("Selected admin not found");
       }
@@ -54,23 +91,6 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
       // Simple password validation
       if (password !== 'admin2025') {
         throw new Error('Invalid credentials');
-      }
-
-      // Check if admin exists in database - use maybeSingle to avoid errors when no record found
-      const { data: adminData, error: adminError } = await supabase
-        .from('admin_users')
-        .select('*')
-        .eq('email', selectedUser.email)
-        .maybeSingle();
-
-      if (adminError) {
-        console.error('Database error:', adminError);
-        throw new Error('Authentication failed');
-      }
-
-      // If admin doesn't exist in database, they should contact the super admin
-      if (!adminData) {
-        throw new Error('Admin record not found. Please contact the super administrator to set up your account.');
       }
 
       console.log('Admin authenticated successfully');
@@ -83,7 +103,7 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
       onSuccess({ 
         name: selectedAdmin, 
         email: selectedUser.email,
-        isSuperAdmin: adminData.is_super_admin 
+        isSuperAdmin: selectedUser.is_super_admin 
       });
 
     } catch (error: any) {
@@ -97,6 +117,18 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
       setIsLoading(false);
     }
   };
+
+  if (isLoadingAdmins) {
+    return (
+      <Card className="w-full max-w-md mx-auto">
+        <CardContent className="p-6">
+          <div className="flex justify-center items-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -116,8 +148,13 @@ const AdminAuth = ({ onSuccess }: AdminAuthProps) => {
               </SelectTrigger>
               <SelectContent>
                 {adminUsers.map((admin) => (
-                  <SelectItem key={admin.name} value={admin.name}>
-                    {admin.name}
+                  <SelectItem key={admin.id} value={admin.full_name}>
+                    {admin.full_name}
+                    {admin.is_super_admin && (
+                      <span className="ml-2 text-xs text-amber-600 font-medium">
+                        (Super Admin)
+                      </span>
+                    )}
                   </SelectItem>
                 ))}
               </SelectContent>
