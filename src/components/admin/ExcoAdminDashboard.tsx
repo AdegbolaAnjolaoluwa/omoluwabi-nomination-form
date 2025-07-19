@@ -83,10 +83,10 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
       console.log('Fetching admin dashboard data...');
       
       // Fetch nominations
-      const { data: nominationsData, error: nominationsError } = (await supabase
-        .from('nominations_2025' as any)
+      const { data: nominationsData, error: nominationsError } = await supabase
+        .from('nominations_2025')
         .select('*')
-        .order('submitted_at', { ascending: false })) as { data: Nomination2025[] | null; error: any };
+        .order('submitted_at', { ascending: false });
 
       if (nominationsError) {
         console.error('Error fetching nominations:', nominationsError);
@@ -94,10 +94,10 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
       }
 
       // Fetch voter submissions
-      const { data: submissionsData, error: submissionsError } = (await supabase
-        .from('voter_submissions_2025' as any)
+      const { data: submissionsData, error: submissionsError } = await supabase
+        .from('voter_submissions_2025')
         .select('*')
-        .order('submitted_at', { ascending: false })) as { data: VoterSubmission2025[] | null; error: any };
+        .order('submitted_at', { ascending: false });
 
       if (submissionsError) {
         console.error('Error fetching submissions:', submissionsError);
@@ -105,27 +105,37 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
       }
 
       // Fetch eligible voters
-      const { data: votersData, error: votersError } = (await supabase
-        .from('eligible_voters_2025' as any)
+      const { data: votersData, error: votersError } = await supabase
+        .from('eligible_voters_2025')
         .select('*')
         .eq('is_active', true)
-        .order('full_name')) as { data: EligibleVoter2025[] | null; error: any };
+        .order('full_name');
 
       if (votersError) {
         console.error('Error fetching eligible voters:', votersError);
         throw votersError;
       }
 
+      console.log('Fetched data:', {
+        nominations: nominationsData?.length || 0,
+        submissions: submissionsData?.length || 0,
+        voters: votersData?.length || 0
+      });
+
       setNominations(nominationsData || []);
       setVoterSubmissions(submissionsData || []);
       setEligibleVoters(votersData || []);
 
       // Calculate statistics
-      if (nominationsData) {
+      if (nominationsData && nominationsData.length > 0) {
         calculateStats(nominationsData);
         if (isSuperAdmin) {
           calculateTopNominees(nominationsData);
         }
+      } else {
+        console.log('No nominations data to process');
+        setStats([]);
+        setTopNominees([]);
       }
 
     } catch (error: any) {
@@ -141,25 +151,49 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
   };
 
   const calculateStats = (nominationsData: Nomination2025[]) => {
+    console.log('Calculating stats for', nominationsData.length, 'nominations');
     const positionStats: { [key: string]: { [nominee: string]: number } } = {};
     
     nominationsData.forEach(nomination => {
       // Count votes for each position
       positions.forEach(position => {
         const positionKey = position.toLowerCase().replace(/[.\s]/g, '_');
-        const nominee = nomination[positionKey as keyof Nomination2025] as string;
+        let nominee = '';
         
-        if (!positionStats[position]) {
-          positionStats[position] = {};
+        // Map position to database column
+        switch (positionKey) {
+          case 'president':
+            nominee = nomination.president;
+            break;
+          case 'tournament_director':
+            nominee = nomination.tournament_director;
+            break;
+          case 'hon_legal_adviser':
+            nominee = nomination.hon_legal_adviser;
+            break;
+          case 'secretary':
+            nominee = nomination.secretary;
+            break;
+          case 'hon_social_secretary':
+            nominee = nomination.hon_social_secretary;
+            break;
         }
         
-        if (!positionStats[position][nominee]) {
-          positionStats[position][nominee] = 0;
+        if (nominee) {
+          if (!positionStats[position]) {
+            positionStats[position] = {};
+          }
+          
+          if (!positionStats[position][nominee]) {
+            positionStats[position][nominee] = 0;
+          }
+          
+          positionStats[position][nominee]++;
         }
-        
-        positionStats[position][nominee]++;
       });
     });
+
+    console.log('Position stats calculated:', positionStats);
 
     // Convert to array format for display
     const statsArray: NominationStats[] = [];
@@ -173,21 +207,43 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
       });
     });
 
+    console.log('Stats array:', statsArray);
     setStats(statsArray);
   };
 
   const calculateTopNominees = (nominationsData: Nomination2025[]) => {
+    console.log('Calculating top nominees...');
     const nomineeCount: { [nominee: string]: number } = {};
     
     nominationsData.forEach(nomination => {
       positions.forEach(position => {
-        const positionKey = position.toLowerCase().replace(/[.\s]/g, '_');
-        const nominee = nomination[positionKey as keyof Nomination2025] as string;
+        let nominee = '';
         
-        if (!nomineeCount[nominee]) {
-          nomineeCount[nominee] = 0;
+        // Map position to database column
+        switch (position.toLowerCase().replace(/[.\s]/g, '_')) {
+          case 'president':
+            nominee = nomination.president;
+            break;
+          case 'tournament_director':
+            nominee = nomination.tournament_director;
+            break;
+          case 'hon_legal_adviser':
+            nominee = nomination.hon_legal_adviser;
+            break;
+          case 'secretary':
+            nominee = nomination.secretary;
+            break;
+          case 'hon_social_secretary':
+            nominee = nomination.hon_social_secretary;
+            break;
         }
-        nomineeCount[nominee]++;
+        
+        if (nominee) {
+          if (!nomineeCount[nominee]) {
+            nomineeCount[nominee] = 0;
+          }
+          nomineeCount[nominee]++;
+        }
       });
     });
 
@@ -196,6 +252,7 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
       .sort((a, b) => b.total_nominations - a.total_nominations)
       .slice(0, 9);
 
+    console.log('Top nominees calculated:', topNomineesArray);
     setTopNominees(topNomineesArray);
   };
 
@@ -358,7 +415,14 @@ const ExcoAdminDashboard = ({ isSuperAdmin }: ExcoAdminDashboardProps) => {
               </ResponsiveContainer>
             </div>
           ) : (
-            <p className="text-center text-muted-foreground py-8">No nomination data available</p>
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No nomination data available</p>
+              {nominations.length === 0 && (
+                <p className="text-sm text-muted-foreground mt-2">
+                  No nominations have been submitted yet.
+                </p>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
